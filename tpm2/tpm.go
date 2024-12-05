@@ -185,3 +185,12 @@ func ConnectToDefaultTPM() (*Connection, error) {
 // ConnectToDefaultTPM. This can be overridden with a custom connection
 // function.
 var ConnectToTPM func() (*Connection, error) = ConnectToDefaultTPM
+
+func withTPMConnection(tpm *Connection, fn func()) {
+	old := ConnectToTPM
+	ConnectToTPM = func() (*Connection, error) {
+		return tpm, nil
+	}
+	defer func() { ConnectToTPM = old }()
+	fn()
+}

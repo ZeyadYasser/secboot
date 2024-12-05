@@ -79,19 +79,24 @@ func makeKeyDataNoAuth(skd *SealedKeyData, role string, encryptedPayload []byte,
 	})
 }
 
-func makeKeyDataWithPassphraseConstructor(kdfOptions secboot.KDFOptions, passphrase string) keyDataConstructor {
+func makeKeyDataWithPassphraseConstructor(tpm *Connection, kdfOptions secboot.KDFOptions, passphrase string) keyDataConstructor {
 	return func(skd *SealedKeyData, role string, encryptedPayload []byte, kdfAlg crypto.Hash) (*secboot.KeyData, error) {
-		return secbootNewKeyDataWithPassphrase(&secboot.KeyWithPassphraseParams{
-			KeyParams: secboot.KeyParams{
-				Handle:           skd,
-				Role:             role,
-				EncryptedPayload: encryptedPayload,
-				PlatformName:     platformName,
-				KDFAlg:           kdfAlg,
-			},
-			KDFOptions:  kdfOptions,
-			AuthKeySize: skd.data.Public().NameAlg.Size(),
-		}, passphrase)
+		var keydata *secboot.KeyData
+		var err error
+		withTPMConnection(tpm, func() {
+			keydata, err = secbootNewKeyDataWithPassphrase(&secboot.KeyWithPassphraseParams{
+				KeyParams: secboot.KeyParams{
+					Handle:           skd,
+					Role:             role,
+					EncryptedPayload: encryptedPayload,
+					PlatformName:     platformName,
+					KDFAlg:           kdfAlg,
+				},
+				KDFOptions:  kdfOptions,
+				AuthKeySize: skd.data.Public().NameAlg.Size(),
+			}, passphrase)
+		})
+		return keydata, err
 	}
 }
 
@@ -304,5 +309,5 @@ func NewTPMPassphraseProtectedKey(tpm *Connection, params *PassphraseProtectKeyP
 		AuthMode:               secboot.AuthModePassphrase,
 		Role:                   params.Role,
 		PcrProfile:             params.PCRProfile,
-	}, sealer, makeKeyDataWithPassphraseConstructor(params.KDFOptions, passphrase), tpm.HmacSession())
+	}, sealer, makeKeyDataWithPassphraseConstructor(tpm, params.KDFOptions, passphrase), tpm.HmacSession())
 }
